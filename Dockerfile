@@ -1,11 +1,9 @@
 FROM ubuntu:16.04
 
-LABEL title="docker-kakadu" \
+LABEL title="kakadu" \
   author="José Juan Sánchez"
 
 ENV DEBIAN_FRONTEND=noninteractive 
-#ENV TZ=Europe/Madrid
-
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/kakadu
 ENV PATH=$PATH:/kakadu
 
@@ -17,6 +15,8 @@ RUN apt-get update \
     && wget http://kakadusoftware.com/wp-content/uploads/2014/06/KDU7A2_Demo_Apps_for_Ubuntu-x86-64_170827.zip \
     && unzip -j KDU7A2_Demo_Apps_for_Ubuntu-x86-64_170827.zip \
     && rm KDU7A2_Demo_Apps_for_Ubuntu-x86-64_170827.zip
+
+VOLUME /jp2
 
 EXPOSE 80
 
