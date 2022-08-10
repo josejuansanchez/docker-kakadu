@@ -50,7 +50,7 @@ docker run -it --rm kakadu kdu_expand
 
 ## Usage examples
 
-Also you can view the [usage examples][5] for the demonstration applications supplied with Kakadu v7.10.2.
+Also you can view the [usage examples][5] for the demonstration applications supplied with Kakadu v8.0.5.
 
 ## How to create the Docker image
 
@@ -63,8 +63,10 @@ docker build -t kakadu .
 ```
 docker login
 docker tag kakadu josejuansanchez/kakadu:1.0
+docker tag kakadu josejuansanchez/kakadu:latest
 docker images
 docker push josejuansanchez/kakadu:1.0
+docker push josejuansanchez/kakadu:latest
 ```
 
 ## Docker Hub

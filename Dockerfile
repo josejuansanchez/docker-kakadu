@@ -1,7 +1,4 @@
-FROM ubuntu:16.04
-
-LABEL title="kakadu" \
-  author="José Juan Sánchez"
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/kakadu
@@ -12,9 +9,11 @@ RUN apt-get update \
     && apt-get install -y wget \
     && mkdir /kakadu \
     && cd /kakadu \
-    && wget http://kakadusoftware.com/wp-content/uploads/2014/06/KDU7A2_Demo_Apps_for_Ubuntu-x86-64_170827.zip \
-    && unzip -j KDU7A2_Demo_Apps_for_Ubuntu-x86-64_170827.zip \
-    && rm KDU7A2_Demo_Apps_for_Ubuntu-x86-64_170827.zip
+    && wget http://kakadusoftware.com/wp-content/uploads/KDU805_Demo_Apps_for_Linux-x86-64_200602.zip \
+    && unzip -j KDU805_Demo_Apps_for_Linux-x86-64_200602.zip \
+    && rm KDU805_Demo_Apps_for_Linux-x86-64_200602.zip \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
 
 VOLUME /jp2
 

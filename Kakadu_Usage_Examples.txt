@@ -1,6 +1,6 @@
-------------------------------------------------------------------------------
-Usage Examples for the Demonstration Applications Supplied with Kakadu V7.10.2
-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+Usage Examples for Demonstration Applications Supplied with Kakadu V8.0.5
+-------------------------------------------------------------------------
 
 To help you get started right away, we provide some useful examples
 to demonstrate the use of the Kakadu example applications.  These are
@@ -11,9 +11,14 @@ are quite powerful.  Licensed versions of the Kakadu system ship with
 some additional, much simpler demonstration applications for dydactic
 purposes.
 
+HTJ2K Note: We have placed all examples relating to the new High Throughput
+JPEG 2000 (HTJ2K) standard at then end of each demo App's usage examples,
+so as to help you find them.  You can also search for strings like
+"=HT" or "SCP15"
+
 kdu_compress
 ------------
-  Note: you may find it very useful to examine the attributes used by
+  Note 1: you may find it very useful to examine the attributes used by
   the compressor by supplying a `-record' argument on the command
   line.  You may also find it very useful to open up a code-stream
   (optionally embedded inside a JP2 file) using "kdu_show" and to
@@ -21,6 +26,17 @@ kdu_compress
   some of the attributes used by the compressor cannot be preserved
   in the code-stream (e.g., visual weights), so will show up only when
   you use `-record' with the compressor.
+
+  Note 2: While kdu_compress is the most flexible of the image compression
+  demo-apps, being designed to show off the largest number of Kakadu
+  encoding capabilities, it is not the fastest.  If you are interested in
+  measuring speed (or just processing things as quickly as possible), use
+  "kdu_buffered_compress", which builds upon a higher level very powerful
+  Kakadu API `kdu_stripe_compressor'.  That demo-app does not read as many
+  different file formats, but it uses an optimized image data reading
+  process.  You can compress sequences of images even more efficiently using
+  "kdu_v_compress", placing the codestreams in a video container like MJ2
+  or writing them as a (almost) raw sequence to an MJC file or to stdout.
 
   This demo app supports the following input image formats:
   PGM/PPM (up to 16 bits/channel); PBM (i.e., bi-level);
@@ -33,8 +49,34 @@ kdu_compress
 
  a) kdu_compress -i image.pgm -o out.j2c -rate 1.0
     -- irreversible compression to 1 bit/sample.
+ a1) kdu_compress -i image.pgm -o out.j2c Qfactor=85
+    -- uses a quality factor (85% here) instead of bit-rate as the
+       compression objective
+    -- the quality factor is intended to have a broadly similar meaning to
+       the one commonly used to compress JPEG images
+    -- note that some visual weighting is automatically introduced, but goes
+       away as the quality approaches 100%, at which point the PSNR of the
+       compressed result should be about 3dB higher than the natural PSNR
+       associated with digitizing original continuous image intensities to
+       8 bit precision (adapts to the bit-depth of the input content).
+ a2) kdu_compress -i image.pgm -o out.j2c Qfactor=85 -rate 1.0
+    -- Combines the attributes of both of the above examples, compressing
+       the image with visual weighting, to the quality associated with
+       quality factor 85, unless this exceeds a compressed data-rate of
+       1 bit/pixel, in which case the compressed representation is trimmed
+       to that bit-rate in a rate-distortion optimal way.
  b) kdu_compress -i image.pgm -o out.j2c -rate 1.0,0.5,0.25
     -- irreversible compression to a 3 layer code-stream (3 embedded bit-rates)
+ b1) kdu_compress -i image.pgm -o out.j2c -rate 1.0,0.5,0.25 Qfactor=85
+    -- as in the above example, but limiting the highest quality that can
+       be achieved to that associated with a quality factor of 85% and
+       also introducing some visual weighting to the rate-distortion
+       optimization objective associated with all 3 quality layers.
+ b2) kdu_compress -i image.pgm -o out.j2c -rate 1.0,0.5,0.25 Qfactor=85 Ctype=N
+    -- as in the above example, but sets the component-type to non-visual (N)
+       so that there will be no visual weighting.  The rate-distortion
+       optimization objective is then PSNR (i.e., minimization of mean
+       squared error) for all quality layers.
  c) kdu_compress -i image.pgm -o out.j2c Creversible=yes -rate -,1,0.5,0.25
     -- reversible (lossless) compression with a progressive lossy to
        lossless code-stream having 4 layers.  Note the use of the dash, '-',
@@ -48,6 +90,18 @@ kdu_compress
     -- may use image.ppm or image.bmp if you want to start with a colour image
     -- ppm/pgm images with bit-depths up to 16 bits/channel are supported
     -- pfm (floating point) images are also supported
+ d1) kdu_compress -i red.pgm,green.pgm,blue.pgm -o out.j2c -rate 0.5 Qfactor=85
+    -- similar to other examples, this one imposes a quality factor constraint,
+       in addition to the bit-rate constraint.
+    -- while the quality factor is intended to have similar meaning to
+       that used with JPEG, note that colour image compression with JPEG
+       normally involves sub-sampling of the chrominance components
+       produced after a conversion from RGB to YCbCr (the so-called 4:2:0
+       colour representation), while Kakadu here is compressing the image
+       with a full 4:4:4 colour representation.
+    -- for 4:2:0 compression, as commonly used with JPEG, you can add the
+       "-rgb_to_420" option to "kdu_compress", as demonstrated in later
+       examples.
  e) kdu_compress -i image.pgm -o out.j2c Creversible=yes Clayers=9
                 -rate 1.0,0.04 Stiles={711,393} Sorigin={39,71}
                 Stile_origin{17,69} Cprecincts={128,128},{64,64}
@@ -105,7 +159,7 @@ kdu_compress
     -- Generates a code-stream with various error resilience features
        enabled.  Use "kdu_expand -resilient" with such code-streams for the
        best results in the event of transmission error.
- l) kdu_compress -i image.raw -o out.bits Sprecision=16 Ssigned=no
+ l) kdu_compress -i image.raw -o out.bits Nprecision=16 Nsigned=no
                  Sdims={1024,800} Qstep=0.0001 -rate 1.0
     -- Process a raw 16-bit image.
     -- Big-endian byte order is assumed for files with the ".raw" suffix,
@@ -113,13 +167,15 @@ kdu_compress
        suffix.  Pay special attention to this, since the native byte order
        varies from platform to platform -- we don't want our files to have
        platform-dependent interpretations now, do we!
-    -- Note that for raw images you need to
-       supply all of the dimensional information: image dimensions, bit-depth
-       and whether the image samples are signed 2's complement or unsigned
-       values.  Note also that the irreversible processing path chooses
+    -- Note that for raw images you need to supply all of the dimensional
+       information: image dimensions, bit-depth and whether the image
+       samples are signed 2's complement or unsigned values; Kakadu's
+       internal `Sprecision' and `Ssigned' attributes are derived from
+       `Nprecision' and `Nsigned' supplied explicitly here.
+    -- Note also that the irreversible processing path chooses
        a default set of quantization parameters based on a single scaling
        parameter (Qstep) -- you can specify individual subband quantization
-       factors if you really know what you are doing.  The Qstep value is
+       parameters if you really know what you are doing.  The Qstep value is
        interpreted relative to the nominal range of the data which is from
        -2^{B-1} to 2^{B-1}-1 where B is the bit-depth (Sprecision).  If your
        data is represented as 16-bit words, but all the information resides
@@ -136,6 +192,19 @@ kdu_compress
        produced by the entropy coder for the rate controller to achieve
        the target.  To see how many bits are being produced in any
        given case, run the compressor without a `-rate' argument.
+ l1) kdu_compress -i image.raw -o out.bits Nprecision=16 Nsigned=no
+                 Sdims={1024,800} Qfactor=90 Ctype=N -rate 1.0
+    -- From Kakadu version 8.0.4, the `Qfactor' attribute provides a more
+       intuitive way to set the `Qstep' value.  Here, we provide a very
+       high quality factor (90%) and tell Kakadu not to apply any visual
+       weighting (`Ctype' N means a non-visual image component).
+    -- You could go all the way, specifying `Qfactor'=100, which will
+       set up an extremely small Qstep value for you at the high
+       sample bit-depth (16 bits) used in this example.  The 100% quality
+       factor allows compressed quality to reach PSNRs of about 3dB
+       higher than the PSNR naturally associated with digitizing continuous
+       imagery to the precision P (16 bits here); this natural digitization
+       PSNR is 10*log_10(12*2^{2P}).
  m) kdu_compress -i image_y.pgm,image_cb.pgm,image_cr.pgm -o out.jp2
                  -jp2_space sYCC CRGoffset={0,0},{0.25,0.25},{0.25,0.25}
                  -rate 1,0.5,0.2
@@ -158,6 +227,10 @@ kdu_compress
                  -rate 1,0.5,0.2 -chroma_weights 1
     -- As above, but introduces visual weights that are appropriate for
        the YCbCr space, taking chroma sub-sampling into account.
+ m1a) kdu_compress -i image_y.pgm,image_cb.pgm,image_cr.pgm -o out.jp2
+                 -jp2_space sYCC CRGoffset={0,0},{0.25,0.25},{0.25,0.25}
+                 -rate 1,0.5,0.2 Ctype=Y,Cb,Cr
+    -- A better (more explicit) way to do the same thing as in example (m1).
  m2) kdu_compress -i red.pgm,green.pgm,blue.pgm -o out.jp2 -rgb_to_420
                   -rate 1,0.5,0.2
     -- Same as above, but the input RGB content is converted to YCbCr
@@ -178,6 +251,12 @@ kdu_compress
        although you should also explore Cvis=0.001.  Adding "-no_info",
        "-full" and "-tolerance 0" can help to get the most out of a given
        bit budget.
+ m4) kdu_compress -i image.ppm -o out.jp2 -rgb_to_420 Qfactor=85
+    -- pure Qfactor-based compression, very similar to what is done with
+       the original JPEG algorithm, but with all the benefits of JPEG 2000.
+ m5) kdu_compress -i image.ppm -o out.jp2 -rgb_to_420 Qfactor=85 -rate 1,0.5
+    -- Qfactor-limited compression with explicit bit-rate constraints and
+       two quality layers.
  n) kdu_compress -i image.pgm -o out.jp2 Creversible=yes -rate -,1,0.5
                  -jp2_space iccLUM,2.2,0.099
     -- Embeds the compressed image within a JP2 file having an embedded
@@ -1123,6 +1202,387 @@ Cf) kdu_compress -i 01.tif,02.tif,03.tif,04.tif,05.tif,06.tif,
        representation.  This is a reason to be interested in custom
        non-linear point transforms such as that used here.
 
+kdu_compress advanced Part-15 (HTJ2K) Features
+----------------------------------------------
+    These additional examples relate to Part-15 of the JPEG 2000 standard,
+    also known as HTJ2K (High Throughput JPEG 2000), or simply JPH.  The
+    examples here will grow considerably in the coming months, but first
+    we just provide some very simple examples to get you going.
+Ha) kdu_compress -i image.tif -o out.jph Creversible=yes
+    -- Losslessly compresses the image to a JPH file.
+       Use of the fast HT Block coder is automatically introduced here
+       due to the use of a JPH file target.  JPH files are almost identical
+       to JP2 files, but have a different brand.
+    -- Direct HTJ2K encoding is definitely faster than encoding non-HT
+       codestreams.  In the example here, lossless encoding of an 8-bit
+       per channel source is around 10 times faster, but it can be much
+       faster than this again.
+    -- The "kdu_compress" demo-app is not capable of demonstrating the true
+       throughput achievable by HTJ2K because it reads the image from file,
+       using separate "fread" calls for each line, and uses plain
+       sample-by-sample conversion operations to transform the source
+       samples into the desired internal format.  For a better demonstration
+       of very high throughput, the "kdu_buffered_compress",
+       "kdu_v_compress" and "kdu_vex_compress" examples are preferred,
+       since these read imagery in larger chunks and use vectorized
+       sample data conversion operations, via the high level
+       `kdu_stripe_compressor' API that automates these processes.  Even
+       then, it is extremely unlikely that you can read data fast enough
+       from even a very fast SSD to avoid disk I/O being the bottleneck.
+       For a high throughput evaluation, you are referred to the advanced
+       "kdu_v_compress" usage examples that use a "-frame_reps" argument
+       to ensure that data is compressed from memory buffers with minimal
+       disk I/O.
+Hb) kdu_compress -i image.tif -o out.j2c Creversible=yes Scap=P15
+    -- Like the above example, but produces a raw codestream.  By default,
+       raw codestreams use the standard Part-1 block coding algorithm, but
+       by specifing the P15 flag in the `Scap' attribute, we force all the
+       defaults to change to those most appropriate for Part-15.
+Hc) kdu_compress -i image.tif -o out.j2c Creversible=yes Cmodes=HT
+    -- Generates the same results as the above example.  In this case, we
+       explicitly specify use of the HT block coding algorithm of
+       Part-15, and this results in automatic configuration of the `P15'
+       flag for CAP (capabilities) and so forth.
+Hd) kdu_compress -i image.tif -o tmp.jph -rate 2
+    -- Similar to (Ha), but specifies a bit-rate target.  Pretty much all
+       parameter attributes and command-line arguments work the same way
+       for Part-15 as they do for Part-1.
+    -- While this examples demonstrate that HTJ2K encoding is much faster
+       than regular J2K encoding (assuming a processor for which
+       optimizations are available -- e.g., Intel with AVX2), it does
+       not demonstrate the maximum possible throughput increase.
+       You should receive a printed note (if you did not specify "-quiet")
+       suggesting that you use either the "-bstats" argument or specify
+       the `Cplex' parameter attribute, both of which act to constrain
+       encoding complexity, using dynamically estimated scene complexity
+       statistics.  This is only relevant when there is an explicit
+       bit-rate target ("-rate") and only one quality layer (Clayers=1).
+    -- Nevertheless, You should find that HTJ2K encoding with rate control,
+       as above, for a source with 8-bit/channel precision, is around 4 to
+       5 times faster than regular J2K encoding to the same conditions.
+Hd1) kdu_compress -i image.tif -o tmp.jph Qfactor=85
+    -- Demonstrates Q-factor based compression with HTJ2K.
+    -- As noted in earlier examples, the JPEG 2000 quality factor is
+       intended to have similar meaning to the quality factor commonly
+       used to control JPEG, but note that here we are compressing colour
+       imagery without any sub-sampling (4:4:4 rather than the 4:2:0
+       sub-sampled representation most commonly used with JPEG).
+    -- Using a `Qfactor' to control HTJ2K compression, without a separate
+       bit-rate constraint, leads to the highest possible encoding
+       throughput.
+Hd2) kdu_compress -i image.tif -o tmp.jph Qfactor=85 -rgb_to_420
+    -- Same as example (Hd1) but uses the 4:2:0 colour representation
+       that is most commonly employed with traditional JPEG compression.
+       4:2:0 tends to be a little more efficient, in the sense of
+       minimizing visual distortion for a given bit-rate, but at very
+       high qualities, the loss of chrominance resolution associated
+       with 4:2:0 becomes more obvious, depending on the content.  This
+       is why professional photographers tend to prefer 4:4:4.
+He) kdu_compress -i image.ppm -o tmp.j2c -rate 2 Cmodes=HT Cmodes:C1=0
+    -- Demonstrates the generation of a Part-15 codestream in which the
+       HT block coder is used for 2 of the image components, while
+       component 1 (first chrominance component in this case) uses the
+       Part-1 block coding algorithm.
+    -- It is really worth opening this file using kdu_show, if you have it,
+       using the File->Properties menue to see what parameter attributes
+       have been generated for this codestream.  Alternatively, pass the
+       "-record" option to kdu_expand.
+Hf) kdu_compress -i image.ppm -o tmp.jph -rate 2 Clayers=8
+    -- This demonstrates that HTJ2K codestreams can have multiple quality
+       layers, even if they exclusively use the HT block coding algorithm,
+       which is not significantly embedded -- i.e., not really quality
+       scalable.
+    -- Quality layer boundaries and all rate control here are done in the
+       same way as they are for non-HT codestreams that use the original
+       JPEG 2000 block coding algorithm.  Quality layer boundaries are
+       correctly recorded in the codestream's packet headers, but the
+       content is not actually quality scalable.  This means that if you
+       try to decode with a reduced number of quality layers (try it in
+       "kdu_show" using the "<" accelerator), most or all of the code-block
+       data decodes to 0, which can produce some rather weird artifacts,
+       but you are not expected to do this.  The reason for preserving
+       quality layer boundaries in HTJ2K codestream that use only the
+       non-scalable HT block coder, is to facilitate subsequent transcoding.
+    -- Take a look at the advanced "kdu_transcode" usage examples for HTJ2K,
+       which show how you can transcode the HT-only output to a codestream
+       that uses the original (non-HT) block coding algorithm of JPEG 2000
+       and recovers all quality layer boundaries perfectly.  Another
+       transcoding example shows how the codesteram can efficiently be
+       transcoded to one at lower quality by discarding quality layers
+       during transcoding, while retaining the HT-only block coding
+       algorithm -- this is much better than completely decoding the HTJ2K
+       image and re-encoding at a lower quality, since the rate control
+       process has been done once for all quality layers and the resulting
+       layer boundaries, recorded in the codestream, are then re-used each
+       time transcoding to a different quality is required.
+Hg) kdu_compress -i image.ppm -o tmp.jph -rate 4 Cplex={6,EST,0.25,0}
+    -- This example shows you how to make the encoding go faster, using
+       the "Cplex" (read as "Complexity Constraints") parameter attribute.
+       This attribute provides various methods for managing the set of
+       coding passes that are generated by the block encoder, but the
+       most powerful and versatile is the "EST" (read as "Estimated")
+       method.  Basically, as subband samples are generated by DWT
+       analysis, they are used to compute statistics that are forwarded
+       to the core codestream management machinery for the determination
+       of suitable complexity constraints, based on the target compressed
+       size -- specified here via "-rate".
+    -- The first parameter to the "Cplex" attribute identifies the
+       maximum number of coding passes to perform for each code-block,
+       for which 6 is a good value.  The HT block coder produces coding
+       passes that are organized into so-called HT-Sets, each of which
+       has 3 passes, so it makes sense to request a whole number of
+       HT-Sets.  You can get away with a single set (3 passes), but will
+       lose some coding efficiency; there is pretty much no value in
+       encoding more than 2 HT-Sets, so 6 is the natural value for this
+       parameter.  Values that are not multiples of 3 could be useful
+       for fine tuning the trade-off between computation and coding
+       efficiency.  For example, a value of 4 can prove useful, but it
+       will not be a lot faster than 6.  A value of 1 can be supplied
+       here to see just how conservative the complexity constraint
+       generation mechanism is - you should get a result which is
+       distinctly smaller than the target compressed size when only
+       1 pass is generated.
+    -- The third parameter indicates how conservative the complexity
+       constraint generation machinery should be in determining where
+       the coarsest coding pass should be.  This parameter takes values
+       in the range 0 to 1, where 0 leaves the least slack and 1 leaves
+       the most slack between the target compressed size and the
+       size associated with keeping only the first (coarsest) coding
+       pass from every code-block.  Even the value 0 should still be
+       conservative, but less so.  A value of 0.25 is a good choice in
+       general, but if you do intend to generate only one HT-Set
+       (i.e., just 3 passes instead of 6), we recommend a smaller value
+       for the third parameter, such as 0.05.  If you are prepared to
+       generate 3 HT-Sets (quite a lot), then it makes sense to choose
+       a larger value for the third parameter, such as 0.75, to extract
+       some small benefit from the extra coding passes you are
+       generating -- the idea is to ensure that the generated coding
+       passes nicely straddle the optimal truncation point that cannot
+       be selected until the codestream content is flushed.
+    -- The fourth parameter allows you to insert a controlled delay
+       between the point at which subband samples (and hence there
+       statistics) become available and the point at which complexity
+       constraint decisions are made for the affected code-blocks.
+       The value 0 here implies no delay, which means that there is no
+       additional memory introduced into the data processing pipeline,
+       but complexity constraint decisions rely more heavily upon
+       forecasting the statistics of future subband samples that have
+       not yet been seen.  Despite this, using the minimal memory
+       configuration here still usually produces very good results in our
+       experience.  See below for more examples, though.
+    -- If you did not specify "-quiet", you should have received an
+       advisory note recommending that you use the "-bstats" option,
+       providing background scene complexity statistics to make the Cplex-EST
+       algorithm much more robust.  See below for examples of this.
+    -- NOTE that the "kdu_compress" demo-app is throughput limited by
+       its line-by-line approach to reading image samples from file
+       via "fread".  It is very likely that the throughput of these
+       examples is actually constrained by file I/O, rather than
+       processing, even if you have an ultra-fast SSD, since "fread"
+       throughput is really quite limited.  For a better test of
+       throughput, you are recommended to use the "kdu_buffered_compress"
+       demo-app -- see the corresponding usage examples for that
+       application. 
+Hh) kdu_compress -i image.ppm -o tmp.jph -rate 4 Cplex={6,EST,0.25,-1}
+    -- Similar to above, but demonstrates a maximum memory configuration.
+       As noted above, the last argument to the "Cplex" attribute controls
+       the amount of delay (or buffering) between subband sample generation
+       and the point at which complexity constraints are generated for the
+       corresponding code-blocks, which must happen before the encoding
+       jobs are scheduled to run.  Supplying a negative value for this
+       parameter provides a convenient way to specify large delays.  The
+       value -1 means that the effective delay is 1 line less than the
+       full tile height, which is essentially the largest sensible delay.
+       A value like "-128" might make more sense with the default code-block
+       height of 64, noting that code-blocks of height 64 in the highest
+       resolution level span 128 image lines, so -128 means that the
+       encoding can commence once there is only one row of code-blocks'
+       subband samples left to produce.
+    -- Note that the "Cplex" attribute can be tile-specific and the
+       EST algorithm performs its estimates on a tile-by-tile basis.
+       However, if there are multiple tiles, statistics from previously
+       processed tiles are automatically shared with subsequent tiles
+       to improve their forecasts.  You could, for example, specify a
+       larger delay value (4'th parameter) for the first row of tiles
+       than subsequent rows of tiles, so as to avoid the need to ever
+       forecast statistics based on limited observations.  In practice,
+       however, we discourage the use of tiles in general with
+       JPEG 2000, since they are not necessary unless one intends to
+       compress enormous images running into the tens or hundreds of
+       Giga-pixels, or Tera-pixels.
+    -- Finally, we note that the delay is internally capped at a large
+       yet not infinite value (e.g., 64K image lines).
+Hi) kdu_compress -i image.ppm -o tmp.jph -rate 4 -bstats stats.txt
+    -- Does the same thing as example (Hg), automatically setting the
+       recommended "Cplex={6,EST,0.25,0}" option for you, but uses the
+       background scene complexity statistics found in file "stats.txt"
+       to make complexity forecasts in this minimum-memory mode of the
+       Cplex-EST algorithm more robust to spatial complexity variations in
+       the image -- much more robust!
+    -- To create the background statistics file "stats.txt" here, you
+       can use almost exactly the same command, applying it to any number
+       of training images, with a slightly different format for the
+       "-bstats" parameter string.  Specifically, to collect training
+       statistics, do the following:
+          kdu_compress -i im1.ppm -rate 4 -bstats -,stats.txt
+          kdu_compress -i im2.ppm -rate 4 -bstats stats.txt,stats.txt
+          kdu_compress -i im3.ppm -rate 4 -bstats stats.txt,stats.txt
+          ...
+       Note that the collected statistics do not depend on the "-rate"
+       parameter, and they do not even depend strongly on the source image
+       sample bit-depths, but they do depend upon the coding and
+       quantization parameters, as well as the number of image (colour)
+       components.  You will get warning messages if the statistics are
+       incompatible or partially incompatible with your coding configuration.
+    -- While training background statistics might seem like an unfortunate
+       complication, we note that the Cplex-EST forecast methodology is only
+       weakly dependent on these background statistics, so that you can
+       use statistics trained with very different images and should still
+       find it beneficial.  Just a single training image may well be
+       enough.
+Hi1) kdu_compress -i image.ppm -o tmp.jph -rate 4 -bstats stats.txt Qfactor=90
+    -- Just like example (Hi), but adds a `Qfactor' type constraint to image
+       quality.
+    -- This example really puts lots of things together at once:
+       Quantization parameters are chosen based on the quality factor;
+       Visual weights are introduced automatically in a way that is sensitive
+       also to the quality factor (less aggressive at very high qualities);
+       Overall compressed size is also constrained based by the "-rate"
+       constraint, to 4 bits/pixel; and Cplex-EST complexity constraints also
+       apply, using background statistics to maximize the robustness of the
+       complexity-constrained process that is installed to meet the
+       -rate constraint in a rate-distortion optimal way.
+Hj) kdu_compress -i image.ppm -o tmp.jph -rate 4 Cplex={3,EST,0.05,0}
+    -- Demonstrates a suitable configuration for complexity-constrained
+       encoding with just one HT-Set -- see example (Hg) for an
+       explanation of these parameter values.
+Hk) kdu_compress -i image.ppm -o cbr_out.j2c -rate 2 Corder=PCRL Clevels=5
+                 Cprecincts={8,8192},{4,8192},{2,8192} Cblk={4,1024}
+                 Cdecomp=B(-:-:-),B(-:-:-),H(-)
+                 Qstep=0.0001 Catk=2 Kkernels:I2=I5X3 -no_weights
+                 Scbr={1,10} Cmodes=HT Cplex={6,EST,0.25,-1} -flush_period 8
+    -- Demonstrates ultra-low latency image compression.  Of course, the compressed
+       target here is a file, but it could be a network interface or something
+       else that is able to take advantage of low latency.  The fundamental
+       end-to-end latency for this compression setup is just 24 image lines,
+       including the latency associated with a constant bit-rate communication
+       channel, forward and inverse wavelet transform and the pre-buffering
+       required for the Cplex-EST complexity-constraint generation algorithm
+       employed here.  The actual latency will be larger due to computation
+       delays and operating-system induced latencies that can be considerable,
+       but this application really can flush compressed data to the output every
+       8 input lines, after a well defined initial delay.
+    -- You can eliminate the "-flush_period" option if you like, and the
+       codestream flushing process will be deferred to the very end of the image,
+       but the codestream that results will be the same, since the `Scbr' option
+       enforces the deployment of a rate-control algorithm that always operates
+       causally, flush-set by flush-set, no matter when it is deployed.  This
+       means that you can also specify a larger "-flush_period" such as 64, to
+       run the background flushing job less often, while still generating a
+       codestream that is formally compatible with the fundamental latency of
+       24 lines, even if the actual latency is higher.  This is because the
+       JPEG 2000 rate control process is decoupled from the transformation and
+       encoding processes, rather than operating in a tight feedback loop as
+       typical video coders do.  In fact the encoder and decoder can flexibly
+       adjust their latencies to suit a particular implementation platform,
+       right down to the point where the fundamental latency is almost
+       achieved, without needing to negotiate any change in the codestream
+       structure.
+    -- To keep the latency low, two Part-2 features have been employed: the
+       5/3 irreversible DWT is introduced via the `Kkernels' and `Catk'
+       attributes; and a non-uniform downsampling style has been introduced
+       via the `Cdecomp' attribute, so that there are only 2 vertical wavelet
+       decomposition levels but 5 horizontal decomposition levels.
+    -- For low latency, the spatially progressive codestream sequence idetified
+       as PCRL is employed.
+    -- The HT block encoder is used for maximum throughput, while the Cplex-EST
+       complexity constraint algorithm guarantees that no more than 6 coding
+       passes (2 HT-Sets) will be produced by the block encoder, for any
+       code-block, prior to the PCRD-opt stage, which executes every 8 lines -- a
+       so-called "flush-set".
+    -- Notice that the high-memory form of the Cplex-EST algorithm is used (last
+       parameter to `Cplex' is -1, not 0).  This is desirable for low latency
+       compression, because the Cplex-EST algorithm operates independently on
+       each flush-set in the presence of the `Scbr' option, and here the flush-sets
+       correspond to just 8 image lines, so that high-memory does not imply very
+       much memory (or delay) at all.  You can achieve lower practical latency
+       levels with the low-memory Cplex-EST form (last parameter = 0), because
+       this allows block encoding to start earlier, but the latency benefit is
+       only modest for configurations like this one.  The main benefit of the
+       high-memory form of Cplex-EST here is that the coding passes actually
+       generated are deduced in a deterministic way from the image sample
+       statistics, regardless of the multi-threading behaviour -- this is not
+       true of the low-memory form, which otherwise still performs very well.
+    -- The "-no_weights" option ensures optimization for MSE (or PSNR), but you
+       can leave this off to get a visually optimized result.
+    -- Note that this configuration is even more interesting with the
+       `kdu_buffered_compress' demo-app, which allows you to hit higher
+       througputs and eliminate the impact of source image file reading time
+       on throughput measurements.  It is also very interesting for low-latency
+       video compression applications, using "kdu_v_compress" or "kdu_vcom_fast".
+Hl) kdu_compress -i image.ppm -o cbr_out.j2c -rate 2 Corder=PCRL Clevels=5
+                 Cprecincts={32,8192},{16,8192},{8,8192},{4,8192} Cblk={16,256}
+                 Cdecomp=B(-:-:-),B(-:-:-),B(-:-:-),H(-) Qstep=0.0001 -no_weights
+                 Scbr={1,34} Cmodes=HT Cplex={6,EST,0.25,-1} -flush_period 32
+    -- Very similar to the last example, except that the longer (and usually
+       more efficient) 9/7 DWT kernel is used from JPEG 2000 Part-1 (Kakadu's
+       default irreversible transform) and there are 3 levels of vertical
+       wavelet decomposition (still 5 levels of horizontal decomposition).
+    -- The fundamental end-to-end latency in this case is 108 image lines and
+       the flush-set size is 32 lines.
+    -- This configuration is strongly recommended for applications that require
+       low latency, but do not need the ridiculously low latency of the
+       configuration in example (Hk).
+Hm) kdu_compress -i image.ppm -rgb_to_420 -o cbr_out.jpx -rate 2 Corder=PCRL
+                 Clevels=4 Clevels:C0=5
+                 Cprecincts={16,8192},{8,8192},{4,8192} Cblk={16,256}
+                 Cprecincts:C0={32,8192},{16,8192},{8,8192},{4,8192}
+                 Cdecomp=B(-:-:-),B(-:-:-),H(-)
+                 Cdecomp:C0=B(-:-:-),B(-:-:-),B(-:-:-),H(-)
+                 Qstep=0.0001 -no_weights
+                 Scbr={1,34} Cmodes=HT Cplex={6,EST,0.25,-1} -flush_period 32
+    -- Same as the last example, but adjusted for use with 4:2:0 imagery,
+       in which hte chrominance channels are sub-sampled by 2 in each direction,
+       relative to the luminance channel.  In this case, 420 content is
+       constructed automatically from the RGB source image via the "-rgb_to_420"
+       option, but you can also just feed luminance and chrominance components
+       as separate image files to the "-i" argument -- there are many other
+       examples of this above.
+    -- Notice that the wavelet decomposition structure for the luminance
+       component (C0) add one extra level of decomposition (vertical and
+       horizontal) and this levels subband samples are packated into precincts
+       that have twice as many lines.  This ensures that all flush-sets represent
+       32 luminance lines and 16 chrominance lines each, maintaining an end-to-end
+       latency of 108 luminance lines.
+    -- The output codestream is embedded in a JPX file here, for convenience of
+       rendering, since the JPX file can capture the rendering intent (YCbCr 4:2:0
+       content needs to be upsampled and colour converted during rendering).  A
+       plain JPH file cannot be used here, because features of JPEG 2000 Part-2
+       have been employed, along with those of Part-1 (core) and Part-15 (HTJ2K).
+Hn) kdu_compress -i image.ppm -rgb_to_420 -o cbr_out.jpx -rate 2 Corder=PCRL
+                 Clevels=5
+                 Cprecincts={32,8192},{16,8192},{8,8192},{4,8192} Cblk={16,256}
+                 Cdecomp=-(),B(-:-:-),B(-:-:-),H(-)
+                 Cdecomp:C0=B(-:-:-),B(-:-:-),B(-:-:-),H(-)
+                 Qstep=0.0001 -no_weights
+                 Scbr={1,34} Cmodes=HT Cplex={6,EST,0.25,-1} -flush_period 32
+    -- This example is extremely similar to the last one, except that all image
+       components now have 5 levels of wavelet decomposition, with the same
+       precinct structure, but the first level for the chrominance components
+       is a degenerate one (signature "-()" in the `Cdecomp' attribute), which
+       does no downsampling and produces no detail subbands.
+    -- The difference between the codestreams produced by this example and the
+       previous can be experienced during reduced resolution decoding (e.g., 
+       using "kdu_expand -reduce 1 ...").  Discarding a resolution level from
+       the codestream produced here leaves all 3 components with the same
+       dimensions (i.e., half resolution but 4:4:4 sampling).  On the other
+       hand, discarding a resolution level from the codestream produced by the
+       previous exmaple preserves the original 4:2:0 sampling arrangement, with
+       all component dimensions halved.  The present example is almost certainly
+       preferable, because it allows 3 levels of resolution scaling, before the
+       aspect ratio of the reconstructed image changes due to the use of
+       horizontal-only wavelet decomposition at the lowest resolutions.
+
 kdu_buffered_compress
 ---------------------
   This application offers many of the same features as "kdu_compress".  The
@@ -1292,6 +1752,85 @@ kdu_buffered_compress
        incremental flushing could have generated excessive tile-part
        boundaries that were hard to control.
 
+kdu_buffered_compress advanced Part-15 (HTJ2K) Features
+-------------------------------------------------------
+    These additional examples relate to Part-15 of the JPEG 2000 standard,
+    also known as HTJ2K (High Throughput JPEG 2000), or simply JPH.
+    Most of the HTJ2K examples to get you started appear under "kdu_compress",
+    but the HT Block coder is so fast that the line-by-line image reading
+    paradigm in "kdu_compress" usually becomes the bottleneck, so that
+    you cannot properly measure throughput this that application.  Here
+    we give you some ideas for measuring throughput.
+Ha) kdu_buffered_compress -i big_image.ppm -vrep 8 Qstep=0.001
+    -rate 3 -cpu -stats Cmodes=HT
+    -- This example aims to eliminate file reading I/O as a bottleneck
+       in the measurement of throughput for HTJ2K encoding.  A single
+       big image is read into memory and then effectively concatenated
+       with itself 8 times over to make an image that is much taller.
+    -- Notice that there is no output file.  The compression, rate
+       control and codestream generation all takes place, but
+       nothing needs to be written to disk.
+    -- Running this example with a 13Kx13K RGB source image on a
+       late 2016 15" Macbook Pro (2.7GHz 4-core i7 Skylake CPU) yielded a
+       throughput of 820 Mega-samples/s.
+Hb) kdu_buffered_compress -i big_image.ppm -vrep 8 Qstep=0.001
+    -rate 3 -cpu -stats Cmodes=HT
+    Corder=PCRL -flush_period 1024
+    Cprecincts={256,1024},{256,1024},{256,1024},{128,1024},{64,1024},{32,1024}
+    -- Building on the last example, this one avoids deferring the
+       post-compression rate-distortion optimization step to the end,
+       where it has to run single-threaded.  Instead, the rate control
+       and codestream generation processes are performed incrementally,
+       roughly every 1000 image lines, so they can mostly take place in
+       the background while other threads are busy working to compress
+       new content.
+    -- Running this example with the same 13Kx13K RGB source image on a
+       4-core Skylake i7 Desktop machine with 3.4GHz base clock yielded a
+       throughput of 906 Mega-samples/s.
+Hc) kdu_buffered_compress -i big_image.ppm -vrep 8 Qstep=0.001
+    -rate 3 -cpu -stats Cmodes=HT
+    Cplex={6,EST,0.25,0} Corder=PCRL -flush_period 1024
+    Cprecincts={256,1024},{256,1024},{256,1024},{128,1024},{64,1024},{32,1024}
+    -- This example demonstrates the way to get the highest throughput
+       during HTJ2K encoding of a single image.  The key here is the
+       "Cplex" coding parameter attribute -- it is a pseudo-attribute
+       in that there it does not affect parameters recorded in the
+       codestream header.  The Cplex attribute (and in particular its
+       EST complexity constraint method) is explained in the "Hxx
+       series examples for "kdu_compress" above). 
+    -- Running this example with the same 13Kx13K RGB source image on a
+       4-core Skylake i7 Desktop machine with 3.4GHz base clock yielded a
+       throughput of 1.71 Gsamples/s.
+    -- For reference, on the same platform with "Cmodes=0" (i.e., using
+       the original JPEG 2000 block coding algorithm), the throughput
+       is 162.5 Mega-samples/s with regular Kakadu (not the speed-pack
+       version).  This means that there can be more than a 10x end-to-end
+       speedup for HTJ2K encoding over regular Kakadu-based JPEG 2000
+       encoding at 3 bits/pixel, with full rate control.  Of course, larger
+       speedups can be expected at higher bit-rates, with truly enormous
+       speedups for lossless compression.
+    -- As with "kdu_compress", supplying "Cplex" alone like this will result
+       in a printed note recommending that you use the "-bstats" option
+       instead, in order to make the Cplex-EST forecasting strategy for
+       the complexity of unseen subband samples more robust.  See next
+       example.
+Hd) kdu_buffered_compress -i big_image.ppm -vrep 8 Qstep=0.001
+    -rate 3 -cpu -stats Cmodes=HT
+    -bstats stats.txt Corder=PCRL -flush_period 1024
+    Cprecincts={256,1024},{256,1024},{256,1024},{128,1024},{64,1024},{32,1024}
+    -- Same as example (Hc), except that background scene complexity
+       statistics are imported from file "stats.txt" to make the Cplex-EST
+       complexity constraint algorithm more robust, without reducing its
+       throughput in any significant way.
+    -- As exampled in "kdu_compress" example (Hi), you can collect
+       background statistics for the "stats.txt" file in a simple way,
+       using either kdu_compress or kdu_buffered_compress.  For example,
+       you can use the following:
+          kdu_buffered_compress -i im1.ppm -rate 4 -bstats -,stats.txt
+          kdu_buffered_compress -i im2.ppm -rate 4 -bstats stats.txt,stats.txt
+          kdu_buffered_compress -i im3.ppm -rate 4 -bstats stats.txt,stats.txt
+          ...
+
 kdu_maketlm
 -----------
  a) kdu_maketlm input.j2c output.j2c
@@ -1309,35 +1848,41 @@ kdu_maketlm
 
 kdu_v_compress
 --------------
-    Accepts similar arguments to `kdu_compress'.
+    Accepts similar arguments to `kdu_compress', but (nominally) for video.
+
     The input format must be one of the following:
       VIX file (wide range of precisions, colour, sub-sampling, frame rates);
           Read the usage statement to find a detailed description of the VIX
           raw video file format, which is superior to YUV since it has a
           header.
       YUV (precisions out to 16 bits per channel, and even RGB-containing
-           YUV files, discovered by parsing the filename -- should work for
-           most sensibly constructed file names).
-          Sequences of YUV files can be automatically concatenated where
-          there filenames contain a numeric suffix -- see usage statement.
+          YUV files, discovered by parsing the filename -- should work for
+          most sensibly constructed file names).
+      TIFF file (precisions out to 16 bits per channel) with 1 to 4
+          components, untiled and uncompressed.
+      Sequences of the above files can be automatically concatenated where
+      their filenames contain a numeric component immediately preceding the
+      file extension -- see usage statement.
+    
     The output format must be one of the following:
-    1) an MJ2 file (*.mj2) -- conforming to the Motion JPEG2000 standard
-    2) a JPB file (*.jpb)  -- elementary broadcast stream, as specified in
-                              Annex M of IS15444-1.
-    3) a JPX file (*.jpx)  -- uses Compositing Layer Extensions boxes and
-                              Multiple Codestream boxes, as defined in
-                              IS15444-2/AMD3, adding some sample metadata
-    4) an MJC file (*.mjc) -- a simple non-standard compressed video format,
-                              developed for illustration purposes.
-    5) no output file at all -- all compression is done and codestreams
-       are generated for each video frame, but the final file writing step
-       is skipped.  The advantage of this is that it allows you to get a
-       clearer picture of how fast the compression will be in an application
-       where the compressed data is stored in memory, transferred over a
-       network, etc.  When compressed results are written to disk, the reading
-       of new input data and writing of compressed output data to the same
-       physical device can substantially increase I/O latencies, depending on
-       the machine.
+      1) an MJ2 file (*.mj2) -- conforming to the Motion JPEG2000 standard
+      2) a JPB file (*.jpb)  -- elementary broadcast stream, as specified in
+                                Annex M of IS15444-1.
+      3) a JPX file (*.jpx)  -- uses Compositing Layer Extensions boxes and
+                                Multiple Codestream boxes, as defined in
+                                IS15444-2/AMD3, adding some sample metadata
+      4) an MJC file (*.mjc) -- a simple non-standard compressed video format,
+                                developed for illustration purposes, or for
+                                piping to other applications.
+      5) no output file at all -- all compression is done and codestreams
+         are generated for each video frame, but the final file writing step
+         is skipped.  The advantage of this is that it allows you to get a
+         clearer picture of how fast the compression will be in an application
+         where the compressed data is stored in memory, transferred over a
+         network, etc.  When compressed results are written to disk, the
+         reading of new input data and writing of compressed output data to
+         the same physical device can substantially increase I/O latencies,
+         depending on the machine.
 
  a) kdu_v_compress -i in.vix -o out.mj2 -rate 2
     -- Compress to a Motion JPEG2000 file, with a bit-rate of 2 bits per pixel
@@ -1474,6 +2019,353 @@ kdu_v_compress
        transform, code-block dimensions and flushing operations allows all
        working memory to reside on-chip, almost entirely within L2 and L1
        cache memories.
+ h) kdu_v_compress -i s0035.tiff+399 -o - -in_prec 10M -frate 1,24
+                   -rate 2 > out.mjc
+    -- Compresses up to 400 TIFF files, "seq00035.tiff" through to
+       "seq00434.tiff".
+    -- The "-in_prec" argument allows you to specify how many of the
+       sample bits recovered for each channel are valid, and whether they
+       are in the MSB or LSB bit positions of each TIFF sample word.  This
+       is useful, because it is common to pack 10 or 12-bit/channel imagery
+       into 16-bit/channel TIFF files -- an unfortunate practice that has
+       arisen due to the fact that TIFF readers rarely support the full
+       range of precisions that can actually be declared in TIFF tags.
+    -- The resulting raw codestreams are written to "stdout" following the
+       MJC file format, which consists of a 12-byte header, followed by
+       a concatenated sequence of codestreams, each prepended by a 4-byte
+       bigendian length field.
+    -- This form of command can be used to pipe a sequence of compressed
+       codestreams to other applications that might package the codestreams
+       into custom containers.
+
+kdu_v_compress advanced Part-15 (HTJ2K) Features
+------------------------------------------------
+    These additional examples relate to Part-15 of the JPEG 2000 standard,
+    also known as HTJ2K (High Throughput JPEG 2000), or simply JPH.  The
+    examples here will grow considerably in the coming months, but first
+    we just provide some very simple examples to get you going.
+
+Ha) kdu_v_compress -i vid4K.vix -o out.mj2 Qstep=0.01 Cmodes=HT
+    -- This is a really simple example, without any rate control, which
+       allows the highest possible HTJ2K encoding throughput.  The compressed
+       quality here is imply controlled by the quantization step sizes,
+       which are most eastily specified via the single parameter `Qstep',
+       which expands out into separate step sizes for every subband that
+       are adapted to minimize overall mean squared error.
+    -- In a real application, of course, you can change the Qstep value
+       from frame to frame -- J2K supports finer grain (precinct-level)
+       quantization step control, but the feature is hardly every used and
+       not currently implemented in Kakadu.
+    -- Be aware that the encoding itself here is too fast to observe.
+       The throughput in this example will be limited by disk reading
+       (and even writing) speed.  To get a better idea how fast things
+       actually are, you can use the "-frame_reps" argument to force the
+       encoder to process frames that are read from disk many times.
+       In practice, of course, you would be thinking of using the
+       methods in the demo-app to compress directly from frames in
+       memory rather than from disk.
+
+Hb) kdu_v_compress -i vid4K.vix -o out.mj2 Creversible=yes Cmodes=HT
+    -- Same as above, but does lossless compression.
+    -- Be aware that even with the "-frame_reps" argument used to avoid
+       bottlenecking on disk reading, you will still need a fast SSD to
+       absorb the output compressed data fast enough.  For example, on
+       a 4 core, i7 Skylake CPU, Kakadu can encode 4K 4:4:4 12 bit/channel
+       content losslessly at more than 65 frames per second, typically
+       producing well over a Gigabyte/second just at the output, let alone
+       the rate at which data must be read.
+
+Hc) kdu_v_compress -i vid4K.vix -o out.mj2 Corder=RPCL Clevels=6 Cblk={32,128}
+                   -rate 2 Qfix16=FREE Cmodes=HT -fastest -double_buffering 16
+                   -proc_limit 6,1,100 Kkernels:I2=I5X3 Catk=2 -frame_reps 32
+    -- This example illustrates one way to do fully rate-controlled video
+       encoding with deterministic bounds on encoding complexity (6 HT passes
+       per code-block in this case).
+    -- We use a light weight (5/3 irreversible) DWT (a Part-2 feature) with
+       slightly rectangular code-blocks (a little faster and lower in memory
+       consumption than the default), with visual optimization (turn off
+       with -no_weights for MSE optimization).
+    -- The "-proc_limit" option is important here, since it limits the
+       number of HT sets to 2 per frame (each HT Set consists of an HT
+       Cleanup and HT SigProp and an HT MagRef pass), using statistics
+       from previous frames to decide where to put them.
+    -- The "-frame_reps" option is only for speed testing, since reading
+       frames from file (using "fread") is too slow and becomes the
+       bottleneck in the video compression application.  The number of
+       processed coding passes does not depend upon this, so speed
+       estimates should reflect what can be achieved with an in-memory
+       video source (e.g., coming directly from a camera).
+    -- As an example on a late 2016 15" Macbook Pro (Skylake 4-core i7 CPU
+       with 2.7GHz base clock), this example is able to encode full 4K RGB
+       4:4:4 content with 12 bits/channel at 75 frames/second.
+    -- While this option works well, it has a couple of non-idealities,
+       that are all corrected with the "Cplex" mechanism illustrated
+       below.  These non-idealities are:
+       a) The first frame is compressed with essentially no constraint on
+          encoding complexity, to avoid a cold start that may have lower
+          quality;
+       b) If there are large changes in the scene complexity from frame to
+          frame, the "-proc_limit" approach can significantly misjudge the
+          best set of coding passes to perform, resulting in reduced
+          image quality, e.g., in the first frame or two after a scene change.
+       
+Hd) kdu_v_compress -i vid4K.vix -o out.mj2 Corder=RPCL Clevels=6 Cblk={32,128}
+                   -rate 2 Qfix16=FREE Cmodes=HT -fastest -double_buffering 16
+                   Cplex={6,EST,0.25,0} Kkernels:I2=I5X3 Catk=2 -frame_reps 32
+    -- This example replaces the "-proc" method of complexity control with
+       the "Cplex" method.  The "-proc" method uses the rate control outcome
+       from previous frames to determine good sets of coding passes to
+       generate in a current frame (we are generating only 6 HT coding passes
+       for each code-block, but can choose which bit-plane to start from).
+       The "Cplex" method, however, processes each frame completely
+       independently, relying upon statistics collected from the subband
+       samples as they are generated.
+    -- You should find that this example can also run a little faster than
+       the one above that uses "-proc".  Both should produce very nearly
+       the same image quality, but the "-proc" method will suffer if
+       the local image statistics vary strongly from frame to frame.
+    -- As an example on a late 2016 15" Macbook Pro (Skylake 4-core i7 CPU
+       with 2.7GHz base clock), this example is able to encode full 4K RGB
+       4:4:4 content with 12 bits/channel at 78 frames/second.
+    -- For reference, with Cmodes=0 (regular JPEG 2000 encoding) on the same
+       platform, the throughput with regular Kakadu (not the speed-pack),
+       is 8.3 frames/second.  This means that HTJ2K provides an end-to-end
+       throughput improvement of almost 9.4x at 2 bits/pixel with tight
+       rate control.  Of course, at higher bit-rates, or using quantization
+       based rate control, the throughput increase can be much larger again.
+    -- The Cplex method, by itself, can suffer a little if image statistics
+       vary very strongly between the top and bottom of the frame, but the
+       impact is usually only small.  However, this slight weakness can be
+       avoided in three ways:
+       a) You can introduce delay into the "Cplex" method, as documented in
+          the "Hxx" series of examples for "kdu_compress".  In particular,
+          you can use "Cplex={6,EST,0.25,-1}" to introduce the maximum
+          possible delay, but it will consume a lot more memory and so
+          there will be greater demand on the processor's external memory bus.
+       b) The "Cplex" method can use statistics from previous frames as a
+          rough guide to avoid making unreasonable forecasts about future
+          scene complexity when it has only seen a small amount of content
+          from the top of a current video frame.  This works extremely well,
+          even under conditions of strong inter-frame and spatial complexity
+          variation.  So well, in fact, that the "kdu_v_compress" and
+          "kdu_vcom_fast" demo applications always use this feature when
+          the "Cplex-EST" method is specified, directly or indirectly.  In
+          this case, only the first frame of the video sequence suffers from
+          the small possible quality degradations mentioned above, that
+          can arise from large statistical variations from the top to the
+          bottom of the image.
+       c) The "Cplex" method can use background statistics that provide a
+          stationary model (not dependent on the data being compressed)
+          that serves to make forecasts more robust.  This feature is
+          activated via the "-bstats" argument.  You can use methods (b)
+          and (c) together, so that the background statistics make the
+          "Cplex-EST" algorithm more robust for the first video frame,
+          while inter-frame statistics improve the robustness for all
+          other frames -- it does not matter much how far apart the
+          frames are.  This is the approach that this demo-app employs
+          automatically if "-bstats" is specified, as shown in the next
+          example.
+He) kdu_v_compress -i vid4K.vix -o out.mj2 Corder=RPCL Clevels=6 Cblk={32,128}
+                   -rate 2 Qstep=0.001 Qfix16=FREE Cmodes=HT -fastest
+                   -double_buffering 16 -bstats bstats.txt
+                   Kkernels:I2=I5X3 Catk=2 -frame_reps 32
+    -- Just like the last example, and just as fast, but with the "-bstats"
+       argument, which implicitly installs the recommended minimum memory
+       "Cplex-EST" strategy "Cplex={6,EST,0.25,0}", although you can also
+       specify the `Cplex' attribute yourself explicitly, to control the
+       level of complexity and other attributes.
+    -- The "-bstats" argument here behaves exactly the same way as it does
+       when used with "kdu_compress" or "kdu_buffered_compress", and indeed
+       you can collect the statistics from images processed with those
+       demo-apps, or you can collect the statistics from videos with this
+       demo-app or "kdu_vcom_fast" -- they are interchangeable.  The
+       main difference between this example, and the previous one, is that
+       the "-bstats" option will avoid any small degradations in image
+       quality for the first frame of the sequence, that might result
+       from imagery with strong spatial variations in scene complexity.
+       This is mostly of interest if you are using this demo-app to
+       compress source videos that contain only one frame.
+    -- Here we also specify "Qstep=0.001" to provide a finer set of
+       quantization step sizes, capable of generating extremely high
+       quality compressed content.  It is worth noting that the "-bstats"
+       statistics depend on the quantization parameters, to it is a good
+       idea to collect statistics with the finer set of quantization step
+       sizes.
+    -- You can collect statistics using this demo-app, or any of the
+       primary Kakadu compression demo-apps.  To do it with this demo-app,
+       for the coding parameters employed here, use something like the
+       following, noting that the "-rate" value itself has no impact on
+       the collected statistics -- you just need to specify some "-rate".
+          kdu_v_compress -i vid1.vix Corder=RPCL Clevels=6 Cblk={32,128}
+                         -rate 2 Qstep=0.001 Qfix16=FREE Cmodes=HT -fastest
+                         Kkernels:I2=I5X3 Catk=2 -bstats -,bstats.txt
+          kdu_v_compress -i vid2.vix Corder=RPCL Clevels=6 Cblk={32,128}
+                         -rate 2 Qstep=0.001 Qfix16=FREE Cmodes=HT -fastest
+                         Kkernels:I2=I5X3 Catk=2 -bstats bstats.txt,bstats.txt
+          kdu_v_compress -i vid3.vix Corder=RPCL Clevels=6 Cblk={32,128}
+                         -rate 2 Qstep=0.001 Qfix16=FREE Cmodes=HT -fastest
+                         Kkernels:I2=I5X3 Catk=2 -bstats bstats.txt,bstats.txt
+          ...
+       In practice, the compression is only very weakly dependent on the
+       statistics, so you don't need much training (a single video with
+       some representative content should be more than enough).
+Hf) kdu_v_compress -i vid4K.vix -o out.mj2 Corder=PCRL -rate 2 Clevels=5
+                   Cprecincts={8,8192},{4,8192},{2,8192} Cblk={4,1024}
+                   Cdecomp=B(-:-:-),B(-:-:-),H(-),H(-),H(-),H(-)
+                   Qstep=0.0001  Catk=2 Kkernels:I2=I5X3 Scbr={1,10} Cmodes=HT
+                   Cplex={6,EST,0.25,-1}
+    -- Demonstrates low-latency compression with a constant-bit-rate channel
+       model, with 2 vertical and 5 vertical levels of wavelet transform
+       using irreversible 5x3 subband filters and flush-sets of 8 lines each.
+    -- The precincts force code-blocks in the second vertical transform level
+       to have size 1024x2, while code-blocks in the first level have size
+       4x1024, so that a new set of code-blocks from every subband appears
+       every 8 image lines.
+    -- The leaky-bucket buffer model holds 10 lines worth of compressed data
+       at the constant bit-rate corresponding to 2 bits/pixel (-rate 2); it
+       is filled once per flush set, to a fulness of between 8 and 10 lines
+       by the rate control algorithm, and drains at a constant rate, so that
+       neither underflow nor overflow every happens.
+    -- The Cplex-EST algorithm is used to constraint complexity to at most
+       two HT-Sets per code-block (6 coding passes).  A high memory form of
+       the algorithm is used (last Cplex parameter is -1) to avoid any need
+       for statistical forecasting within the Cplex-EST procedure -- it means
+       that the code-blocks for each flush-set are not scheduled for encoding
+       until all subband samples for the flush-set have been generated by the
+       wavelet transform and analyzed to determine the most appropriate
+       bit-planes to use for the two generated HT-Sets in each code-block.
+    -- The fundamental end-to-end latency for this configuration, including
+       channel transport and decoding, from the time one line enters the
+       encoder to the time the line appears at the output of the decopressor
+       is 24 image lines.  This does not allow for additional time taken in
+       computation.  As explained with the `kdu_codestream::get_cbr_model'
+       function, a practical hardware implementation should allow for an
+       additional 8 lines of latency to perform the block encoding and an
+       additional 4 lines of latency to complete all block decoding
+       operations, assuming that all code-block processors operate at a
+       constant throughput and are fully occupied, and that nothing can be
+       assumed about the distribution of compressed bits between low and
+       high frequency subband samples.  Lower latencies are possible with
+       very careful design.
+    -- It is worth noting that the low-latency CBR flushing model accounts
+       for all codestream headers and allows for a carefully calculated
+       transmission start point -- the delay between arrival of the first
+       image line and the start of transmission for that frame.  This start
+       delay is the same for all codestreams (all frames), but the very
+       last flush-set of each codestream may be smaller than its maximum
+       size.  When this happens, dead time exists between the end of one
+       codestream and the start of the next codestreams, so the cumulative
+       length of all codestreams will be slightly smaller than expected when
+       they are written to the MJ2 file format, as is done here.  You can
+       instead write them to the MJC file format, which in CBR mode consists
+       of a concatenated sequence of fixed-length codestreams, including
+       whatever padding is required after the EOC (End of Codestream) marker
+       to ensure an entirely constant data rate.
+    -- We point out here that although everything here can be done with
+       either the original JPEG 2000 block coding algorithm or the HT
+       block coding algorithm, HTJ2K codestreams are by far the most
+       suitable for low latency compression.  The reason for this is that
+       the HT block encoder and decoder are very fast and can run with
+       deterministically bounded throughput, which is extremely important for
+       low latency applications where the number of code-blocks available for
+       parallel processing is inherently limited.
+    -- Finally we point out that the example here actually flushes all the
+       coded content at the end of the codestream, rather than incrementally,
+       although the flushing model processes flush-sets one by one,
+       sequentially without any look ahead, so it is entirely equivalent to
+       flushing the content immediately after the code-blocks of each
+       flush-set have been generated.  For a true low latency software
+       deployment, you should add the "-flush_period" option.  For example,
+       you can specify "-flush_period 8", but this does not guarantee that
+       flushing happens immediately after each flush-set of code-blocks has
+       been generated.  In Kakadu's multi-threaded model, flushing occurs in
+       a high priority background job, but thread scheduling delays inevitably
+       mean that multiple flush-sets might be ready by the time the job
+       gets around to processing them, so that they may appear in a somewhat
+       bursty nature at the `kdu_compressed_target' interface that collects
+       compressed data.  This sort of thing is the main difference between
+       hardware and software deployments, at least for non-real-time
+       operating systems.
+Hg) kdu_v_compress -i vid4K.vix -o out.mj2 Corder=PCRL -rate 2 Clevels=5
+                  Cprecincts={8,8192},{4,8192},{2,8192} Cblk={4,1024}
+                  Cdecomp=B(-:-:-),B(-:-:-),H(-)
+                  Qstep=0.0001 Scbr={1,10} Cmodes=HT
+                  Cplex={6,EST,0.25,-1}
+    -- This is exactly the same as the previous example (Hf), except that
+       we use the irreversible 9x7 wavelet transform (the default DWT from
+       JPEG 2000 Part-1), which has higher coding efficiency than the 5x3
+       transform on natural photographic content, but a higher latency.
+    -- The fundamental end-to-end latency here is 36 lines, and the
+       additional latency attributed to computation is still 12 lines for
+       a straightforward implementation.
+
+Hi) kdu_v_compress -i vid4K.vix -o out.mj2 Corder=PCRL -rate 2 Clevels=5
+                  Cprecincts={16,8192},{8,8192},{4,8192},{2,8192} Cblk={8,512}
+                  Cdecomp=B(-:-:-),B(-:-:-),B(-:-:-),H(-),H(-),H(-)
+                  Qstep=0.0001 Scbr={1,18} Cmodes=HT
+                  Cplex={6,EST,0.25,0} -decoupled_stats
+    -- This is similar to the above example (Hg) except that it uses 3 vertical
+       levels of wavelet transform, for improved coding efficiency while
+       roughly doubling the latency.  Flush-sets here have 16 lines instead
+       of 8 lines, and the leaky-buffer model is sized at 18 lines, so that
+       each flush-set must fill the buffer to between 16 and 18 lines to
+       avoid overflow or underflow.
+    -- Another feature of this example is the use of the low-memory form
+       of the Cplex-EST complexity constraint algorithm (last parameter of
+       `Cplex' is 0 rather than -1).  This does not save a huge amount of
+       memory since Cplex-EST runs on a flush-set basis and the flush-sets
+       are small, but it means that block encoding in each subband can
+       commence as soon as the relevant code-block's samples have been
+       produced by the wavelet transform, rather than waiting until all
+       subband samples for the entire flush-set have been produced.  This
+       does not alter the fundamental latency, but it reduces the
+       computation-induced latency, since computation for the higher resolution
+       code-blocks (the bigger ones) can occur within the fundamental
+       wavelet analysis delay window.  In practice, we find that the low
+       memory form of Cplex-EST performs almost identically to the high
+       memory form, with a typical drop of about 0.02 dB in PSNR (i.e.,
+       negligible loss of image quality), even on content with highly
+       non-uniform scene complexity distribution over the frame.  The
+       "-decoupled_stats" option prevents the use of any information from
+       previous frames in the video when forecasting the complexity of
+       subband samples from a flush-set that have not yet been produced;
+       however, you can always add statistical sharing by removing this
+       argument or you can introduce a background statistical model with the
+       "-bstats" option.  These are unlikely to make much difference unless
+       you work with many more levels of wavelet transform and much larger
+       flush-sets.
+    -- The fundamental latency for this configuration is 76 lines end-to-end,
+       while the additional latency due to computation is less than 20 lines
+       in a simple hardware implementation.  In practice, use of the
+       low memory Cplex-EST configuration here allows for even smaller
+       computation induced delays.
+
+Hj) kdu_v_compress -i vid_3840x2160_60_10b_420_000.yuv -o out.mj2 -rate 2
+                  Corder=PCRL Clevels=4 Clevels:C0=5
+                  Cprecincts={16,8192},{8,8192},{4,8192} Cblk={16,256}
+                  Cprecincts:C0={32,8192},{16,8192},{8,8192},{4,8192}
+                  Cdecomp=B(-:-:-),B(-:-:-),H(-)
+                  Cdecomp:C0=B(-:-:-),B(-:-:-),B(-:-:-),H(-)
+                  Qstep=0.0001 -no_weights
+                  Scbr={1,34} Cmodes=HT Cplex={6,EST,0.25,-1} -flush_period 32
+    -- Same as "kdu_compress" example (Hm), demonstrating low-latency HTJ2K
+       compression of 4:2:0 content with deterministically managed encoding
+       complexity via the Cplex-EST algorithm.
+    -- Fundamental end-to-end latency here is 108 luminance lines.
+Hn) kdu_v_compress -i vid_3840x2160_60_10b_420_000.yuv -o out.mj2 -rate 2
+                   Corder=PCRL Clevels=5
+                   Cprecincts={32,8192},{16,8192},{8,8192},{4,8192} Cblk={16,256}
+                   Cdecomp=-(),B(-:-:-),B(-:-:-),H(-)
+                   Cdecomp:C0=B(-:-:-),B(-:-:-),B(-:-:-),H(-)
+                   Qstep=0.0001 -no_weights
+                   Scbr={1,34} Cmodes=HT Cplex={6,EST,0.25,-1} -flush_period 32
+    -- Same as "kdu_compress" example (Hn), with the same application and
+       latency as example (Hj) above, except that there are 3 natural
+       resolution scales, accessible (for example) via the "-reduce" argument
+       to "kdu_expand", rather than just 2 natural resolution scales; this
+       is achieved by using an empty first level of decomposition for the
+       chrominance components, so that discarding resolution levels leaves
+       the original 4:2:0 content with a 4:4:4 sampling arrangement.
 
 kdu_vcom_fast
 -------------
@@ -1561,6 +2453,32 @@ kdu_vcom_fast
        however, the CPU affinity notation here requests the first engine's
        threads to be assigned to logical CPUs 0 to 7 of group 0 and the
        second to be assigned to logical CPUs 0 to 7 of group 1.
+
+kdu_vcom_fast advanced Part-15 (HTJ2K) Features
+-----------------------------------------------
+    These additional examples relate to Part-15 of the JPEG 2000 standard,
+    also known as HTJ2K (High Throughput JPEG 2000), or simply JPH.
+
+Ha) kdu_vcom_fast -i vid4K.vix -o out.mj2 Corder=RPCL Clevels=6 Cblk={32,128}
+                  -rate 2 Qfix16=FREE Cmodes=HT -fastest -double_buffering 16
+                  Cplex={6,EST,0.25,0} Kkernels:I2=I5X3 Catk=2
+    -- Essentiall the same as example (Hd) for kdu_v_compress.
+    -- The only difference here is that without additional arguments, on a
+       typical 4-core/8-thread CPU, this example will create two processing
+       engines, so the "Cplex" option may result in slightly lower quality
+       than full HT encoding (with "Cplex") for two initial frames of the
+       video, rather than just one in the "kdu_v_compress" case.
+Hb) kdu_vcom_fast -i vid4K.vix -o out.mj2 Corder=RPCL Clevels=6 Cblk={32,128}
+                   -rate 2 Qstep=0.001 Qfix16=FREE Cmodes=HT -fastest
+                   -double_buffering 16 -bstats bstats.txt
+                   Kkernels:I2=I5X3 Catk=2
+    -- Essentially the same as example (He).  The main difference from example
+       (Ha) above is that the background statistics provided via the "-bstats"
+       argument prevent any quality degradation due to strong variations in
+       scene complexity within the first two frames of the video sequence
+       (if there are two processing engines), rather than just one, in the
+       case of "kdu_v_compress".  So the "-bstats" option is slightly more
+       valable for "kdu_vcom_fast" than it is for "kdu_v_compress".
 
 kdu_merge
 ---------
@@ -1807,6 +2725,12 @@ kdu_expand
  sometimes to store fax documents.  In particular, it can write
  low and high precision PGM/PPM, floating point PFM, BMP, TIFF (all
  precisions) and a range of raw sample data formats.
+
+ Note 1: Like "kdu_compress", this is not the fastest of the image
+ decoding applications, but it writes the widest range of image file
+ formats.  If you are interested in measuring decode throughput, you
+ should at least drop the "-o " argument (no output file), but
+ preferably use the "kdu_buffered_expand" demo-app instead.
 
  a) kdu_expand -i in.j2c -o out.pgm
     -- decompress input code-stream (or first image component thereof).
@@ -2212,7 +3136,7 @@ NB3: From KDU-7.2, the "kdu_transcode" application is able to accept JPX
        efficiency of the "kdu_server" application when used to serve up
        a very large image to a remote client.
  h) kdu_transcode -i in.j2c -o out.j2c
-    Mcomponents=6 Nsigned=no Nprecision=8 Mmatrix_size:I7=9
+    Mcomponents=6 Ncomponents=6 Nsigned=no Nprecision=8 Mmatrix_size:I7=9
     Mmatrix_coeffs:I7=1,0,1.402,1,-0.344136,-0.714136,1,1.772,0
     Mvector_size:I1=3 Mvector_size:I2=3
     Mvector_coeffs:I1=128,128,128 Mvector_coeffs:I2=164,164,164
@@ -2240,7 +3164,7 @@ NB3: From KDU-7.2, the "kdu_transcode" application is able to accept JPX
     -- We could extend this example to present numerous output channels,
        each with different contrast, brightness or even colour properties.
  i) kdu_transcode -i in.j2c -o out.jpx -jpx_layers sRGB,0,1,2+sRGB,3,4,5
-    Mcomponents=6 Nsigned=no Nprecision=8 Mmatrix_size:I7=9
+    Mcomponents=6 Ncomponents=6 Nsigned=no Nprecision=8 Mmatrix_size:I7=9
     Mmatrix_coeffs:I7=1,0,1.402,1,-0.344136,-0.714136,1,1.772,0
     Mvector_size:I1=3 Mvector_size:I2=3
     Mvector_coeffs:I1=128,128,128 Mvector_coeffs:I2=164,164,164
@@ -2256,6 +3180,94 @@ NB3: From KDU-7.2, the "kdu_transcode" application is able to accept JPX
     -- Try viewing this file in "kdu_show" and switching back and forth
        between the two compositing layers using the enter and backspace
        keys, for example.
+
+kdu_transcode advanced Part-15 (HTJ2K) Features
+-----------------------------------------------
+    These additional examples relate to Part-15 of the JPEG 2000 standard,
+    also known as HTJ2K (High Throughput JPEG 2000), or simply JPH.  The
+    examples here will grow considerably in the coming months, but first
+    we just provide some very simple examples to get you going.
+
+Ha) kdu_transcode -i src.jp2 -o htj2k_out.j2c Cmodes=HT
+    -- Transcodes any JP2 source to an HTJ2K codestream, using the HT
+       fast block coding algorithm.
+    -- This works even for sources with multiple quality layers, and
+       you get an output that also has all the same quality layers,
+       even though HTJ2K is not really quality scalable.  Try
+       viewing a multi-layer JPH file in kdu_show, and reducing the
+       number of rendered quality layers using the "<" accelerator key.
+       You will notice that hte lower quality layers have either no
+       information, or almost no information, but they do retain all
+       the information required to get back to the original JP2 file.
+Hb) kdu_transcode -i htj2k_src.jph -o no_ht.j2c Cmodes=0
+    -- This can be used to convert a codestream to one that uses the
+       original fully embedded (non-HT) JPEG 2000 block coding algorithm,
+       even if the source codestream (htj2k_src.j2c here) used the HT block
+       coding algorithm.
+    -- If there are multiple quality layers, the resulting codestream
+       will have all the expected quality scalability, even if the
+       source used the HT block coding algorithm that is not really
+       itself quality scalable.  This is because HTJ2K codestream
+       packet headers can describe quality layer boundaries via so-called
+       "placeholder passes".
+    -- NOTE: the "no_ht.j2c" codestream produced here is actually marked as
+       an HTJ2K codestream (if the input was), even though it does not use
+       the HT block coding algorithm.  This is because we have only changed
+       the block coding mode, but not the codestream type.  HTJ2K
+       codestreams are compatible with all other JPEG 2000 family
+       features, and can use the HT block coding algorithm for some,
+       none or all code-blocks.
+Hc) kdu_transcode -i htj2k_src.j2c -o j2k_out.j2c Sncap=P15
+    -- Demonstrates the best way to completely remove all Part-15
+       (HTJ2K) capabilities and features from a codestream, via the
+       "negated capabilities" attribute Sncap.  You can use this with
+       other capability families also, such as "Sncap=P2", to remove
+       (or deny) the relevant capabilities from the codestream.
+       The "Sncap=P15" value here, not only removes Part-15 support
+       indication from the `Scap' attribute that goes in the SIZ marker
+       segment, but also removes the `Cmodes_HT' and `Cmodes_HTMIX' block
+       coding mode flags, without altering any other mode flags that might
+       still remain valid (Cmodes=CAUSAL is particularly important to
+       retain, since it must be retained if present to ensure truly
+       reversible transcoding).
+    -- The "j2k_out.j2c" codestream produced here will conform to Part-1
+       of JPEG 2000 unless there were other capabilities (e.g., from Part-2)
+       which could also be removed, as described above.  Transcoding
+       might not always be possible after removing certain capabilities,
+       but a codestream that contains Part-15 (HTJ2K) features can always
+       be transcoded to one that does not, in a truly reversible manner,
+       which includes preservation of all profile information from any
+       original JPEG 2000 source file that might have been trancoded to
+       Part-15.  This is a very important feature that ensures that
+       transcoding to/from Part-15 really loses no information at all.
+Hd) kdu_transcode -i htj2k_layered_src.j2c -o htj2k_out.j2c Clayers=1
+    -- This demonstrates a really cool feature.  An HTJ2K codestream can
+       be produced by direct encoding or by transcoding from an existing
+       JPEG 2000 source codestream, and in both cases can have multiple
+       quality layers, even though the HT block coding algorithm itself
+       is not really quality scalable.  Later, the codestream can be
+       transcoded back to a non-HT representation, restoring all quality
+       layer boundaries, as demonstrated in (Hb) and (Hc) above.  However,
+       his example shows that it can also be transcoded to another HTJ2K
+       codestream that has a smaller number of quality layers, and the
+       effect is the same as if it had been transcoded to a non-HT
+       representation, then transcoded again to discard quality layers,
+       then transcoded back to the HT representation.  Internally, this
+       is achieved by decoding and re-encoding code-blocks (not always
+       required) to the quality associated with the desired quality layer,
+       which is already recorded in the original codestream.
+He) kdu_transcode -i src.jp2 -o htj2k_out.j2c Cmodes=HT SCP15_limb=11
+    -- Same as example (Ha), but in this example the MAGB (HT block
+       coder precision bound) attribute is bounded by specifying
+       `SCP15_limb' to be 11.  The limit makes no difference unless
+       the system thinks that a value larger than 11 is required to
+       be sure of maintaining all quantized data without error.
+    -- It is possible to explicitly specify a desired `SCP15_magb'
+       value, but that may leave a value that is unnecessarily large,
+       possibly discouraging low powered decoders from attempting to
+       process the codestream.  The `SCP15_limb' attribute supplied
+       here does not force the MAGB value to be 11 -- it can still be
+       smaller.
 
 kdu_show
 --------
@@ -2506,6 +3518,54 @@ kdu_show
     "open -a kdu_show" or "open -a kdu_show test.jp2".  If you do a lot of
     work from the command-line, it could be a good idea to define "kdu_show"
     as an alias for "open -a kdu_show".
+
+  A few words about HTJ2K codestreams (or JPH files):
+    Unsurprisingly, "kdu_show" can view any content compressed using the
+    new High Throughput JPEG 2000 (HTJ2K) standard -- JPEG 2000 Part-15,
+    and of course it can do so very quickly!  However, it is worth
+    understanding one small point of differentiation between HTJ2K
+    content and content compressed using the original JPEG 2000 algorithm.
+       Specifically, you should be aware that the HT block coding algorithm is
+    not fully embedded, possessing very little real quality scalability,
+    even though you can create HTJ2K codestreams (or JPH files) with multiple
+    quality layers (Clayers attribute).
+       HTJ2K codestreams with multiple quality layers retain all relevant
+    information about the quality boundaries within each code-block, so
+    that this information can be used during transcoding.  In particular,
+    kdu_transcode can be used to transcode multi-layer content to another
+    HTJ2K codestreams, or to a traditional JPEG 2000 codestream, discarding
+    quality layers, and the result is exactly what you might expect.  Multi-
+    layer HTJ2K codestreams are mostly provided so that you can preserve
+    quality layer boundaries from an original JPEG 2000 codestreams, during
+    transcoding, and restore them when transcoding back.
+       The "kdu_show" application allows you to render content with a reduced
+    number of quality layers -- easiest way to do this is via the "<" and ">"
+    accelerator keys.  For JPEG 2000 content that does not use the HT block
+    coder, this produces the expected behaviour.  For content that uses the
+    HT block coder of JPEG 2000 Part-15 for some or all of the code-blocks,
+    discarding quality layers would actually produce large degradations in
+    visual quality since the encoded bits actually sit within the last one
+    or two quality layers, in most cases.  To avoid this, from version 8.0.2,
+    Kakadu treats quality layer constraints differently when rendering content
+    containing HT code-blocks.  In particular, when the number of quality
+    layers is constricted during a rendering process, Kakadu actually parses
+    all the layers anyway, for precincts that may hold HT code-blocks, and
+    it always passes sufficiently many of the available quality layers to
+    the block decoder as required to ensure that at least the first HT
+    Cleanup pass is decoded, if there is one.
+       The result is that you may not see a visual change in image quality
+    when you use the "<" and ">" accelerators in kdu_show with multi-layer
+    HTJ2K content (if you do, the change will be only small, due to
+    discarding of at most the HT refinement passes that follow the HT
+    Cleanup pass).  However, you can tell that this is going on by looking
+    at the bottom-right status panel (after possibly toggling the status
+    to the relevant display mode).  You will see in this panel something
+    like "Q.Lyrs=6/20", as an example, when rendering only the first 6
+    of 20 quality layers for regular JPEG 2000 content, while for HTJ2K
+    content you will see something like "Q.Lyrs=6+/20", meaning that at
+    least 6 quality layers are being rendered, but maybe more for HT
+    code-blocks.  The "+" only shows when the multi-layer content uses the
+    HT block coding algorithm.
                                     
   A few words on JPIP browsing:  
     "kdu_show" is also a fully fledged remote image/video/metadata browser,
@@ -2579,6 +3639,24 @@ kdu_show
        communication.  Nevertheless, you may find it necessary to use this
        mode if you have an extremely unreliable network connection and
        are required to communicate via HTTP/1.0 proxies.
+
+       Note that HTJ2K codestreams (and JPH files) can be browsed using
+       JPIP, just like original JPEG 2000 code-streams.  However, because
+       the HT block coder is not quality scalable, the browsing experience
+       will not be nearly so responsive -- the most valuable aspect of
+       quality scalability is that browsing over low bandwidth channels
+       becomes extremely responsive and efficient.  Also, if you happen
+       to restrict the number of quality layers, using the "<" and ">"
+       accelerator keys, during JPIP browsing of multi-layer HTJ2K content
+       (a strange situation), you will notice that the progress bar never
+       reaches full quality (and it should also be visually obvious that
+       something is missing) until you raise the number of quality layers
+       using the ">" accelerator.  The reason for this is that JPIP
+       requests include the quality layer constraint, yet the internal
+       (portable) rendering tools used by "kdu_show" know that HT code-blocks
+       generally need all quality layers to provide a good visual result,
+       as explained above under "A few words about HTJ2K codestreams", which
+       is reflected by the "progress" indicator.
 
 kdu_server
 ----------
